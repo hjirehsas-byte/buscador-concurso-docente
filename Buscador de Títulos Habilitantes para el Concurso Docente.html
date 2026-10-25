@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buscador de Títulos Habilitantes para el Concurso Docente</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light dark}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f6fb;color:#0f1f3d}
+  @media (prefers-color-scheme:dark){body{background:#0b1426;color:#e6ecf8}}
+  .pop{animation:pop .22s ease-out}
+  @keyframes pop{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.pop{animation:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+/* ============ BASE DE DATOS INTERNA ============
+   Para agregar registros: añade una fila a FUENTE  [area, tipo, [títulos...]]
+   o pega objetos { area, tipo, titulo } directamente en REGISTROS_EXTRA.
+   OJO: datos de ejemplo; verifica contra el texto oficial de la Resolución 3842 de 2022. */
+const LIC = "Licenciado", PRO = "Profesional No Licenciado", NOR = "Normalista Superior", TEC = "Tecnólogo en Educación";
+const FUENTE = [
+  ["Matemáticas", LIC, ["Licenciatura en Matemáticas","Licenciatura en Física y Matemáticas","Licenciatura en Matemáticas e Informática","Licenciatura en Matemáticas y Estadística"]],
+  ["Matemáticas", PRO, ["Matemáticas","Estadística","Física","Ingeniería Civil","Ingeniería Industrial","Ingeniería Electrónica","Ingeniería Mecánica","Ingeniería de Sistemas"]],
+  ["Física", LIC, ["Licenciatura en Física","Licenciatura en Física y Matemáticas","Licenciatura en Ciencias Naturales y Física"]],
+  ["Física", PRO, ["Física","Ingeniería Civil","Ingeniería Mecánica","Ingeniería Electrónica","Ingeniería Eléctrica","Ingeniería Física"]],
+  ["Química", LIC, ["Licenciatura en Química","Licenciatura en Química y Biología","Licenciatura en Ciencias Naturales y Química"]],
+  ["Química", PRO, ["Química","Ingeniería Química","Química Farmacéutica","Ingeniería de Alimentos","Bioquímica"]],
+  ["Ciencias Naturales", LIC, ["Licenciatura en Biología","Licenciatura en Ciencias Naturales y Educación Ambiental","Licenciatura en Química y Biología"]],
+  ["Ciencias Naturales", PRO, ["Biología","Ingeniería Ambiental","Medicina Veterinaria","Ecología","Agronomía","Microbiología","Ingeniería Agroindustrial"]],
+  ["Tecnología e Informática", LIC, ["Licenciatura en Informática","Licenciatura en Tecnología e Informática","Licenciatura en Educación Básica con énfasis en Tecnología"]],
+  ["Tecnología e Informática", PRO, ["Ingeniería de Sistemas","Ingeniería Electrónica","Ingeniería de Telecomunicaciones","Ingeniería de Software","Ciencias de la Computación","Ingeniería Mecatrónica"]],
+  ["Inglés", LIC, ["Licenciatura en Lenguas Modernas","Licenciatura en Inglés","Licenciatura en Idiomas","Licenciatura en Lengua Extranjera Inglés"]],
+  ["Inglés", PRO, ["Filología e Idiomas","Traducción e Interpretación","Lingüística"]],
+  ["Humanidades", LIC, ["Licenciatura en Lengua Castellana","Licenciatura en Humanidades y Lengua Castellana","Licenciatura en Español y Literatura","Licenciatura en Literatura"]],
+  ["Humanidades", PRO, ["Lingüística","Literatura","Filología e Idiomas","Comunicación Social","Periodismo"]],
+  ["Ciencias Sociales", LIC, ["Licenciatura en Ciencias Sociales","Licenciatura en Historia","Licenciatura en Geografía","Licenciatura en Educación Básica con énfasis en Ciencias Sociales"]],
+  ["Ciencias Sociales", PRO, ["Historia","Geografía","Sociología","Antropología","Trabajo Social"]],
+  ["Ciencias Económicas y Políticas", LIC, ["Licenciatura en Ciencias Sociales","Licenciatura en Ciencias Económicas"]],
+  ["Ciencias Económicas y Políticas", PRO, ["Economía","Ciencia Política","Administración Pública","Relaciones Internacionales","Derecho","Administración de Empresas"]],
+  ["Filosofía", LIC, ["Licenciatura en Filosofía","Licenciatura en Filosofía y Letras","Licenciatura en Filosofía y Educación Religiosa"]],
+  ["Filosofía", PRO, ["Filosofía","Filosofía y Letras"]],
+  ["Religión", LIC, ["Licenciatura en Ciencias Religiosas","Licenciatura en Teología","Licenciatura en Educación Religiosa"]],
+  ["Religión", PRO, ["Teología","Filosofía y Teología"]],
+  ["Ética y Valores", LIC, ["Licenciatura en Ética y Valores","Licenciatura en Filosofía","Licenciatura en Ética y Cultura Religiosa"]],
+  ["Ética y Valores", PRO, ["Filosofía","Psicología","Trabajo Social","Teología"]],
+  ["Educación Artística", LIC, ["Licenciatura en Artes Plásticas","Licenciatura en Música","Licenciatura en Artes Escénicas","Licenciatura en Educación Artística","Licenciatura en Artes Visuales"]],
+  ["Educación Artística", PRO, ["Artes Plásticas","Música","Diseño Gráfico","Arquitectura","Artes Visuales","Danza"]],
+  ["Educación Física", LIC, ["Licenciatura en Educación Física","Licenciatura en Recreación y Deporte","Licenciatura en Educación Física, Recreación y Deportes"]],
+  ["Educación Física", PRO, ["Profesional en Ciencias del Deporte","Profesional en Deporte","Entrenamiento Deportivo"]],
+  ["Preescolar", LIC, ["Licenciatura en Pedagogía Infantil","Licenciatura en Educación Preescolar","Licenciatura en Educación Infantil"]],
+  ["Preescolar", NOR, ["Normalista Superior"]],
+  ["Preescolar", TEC, ["Tecnología en Educación Preescolar","Tecnología en Educación"]],
+  ["Primaria", LIC, ["Licenciatura en Educación Básica Primaria","Licenciatura en Pedagogía Infantil","Licenciatura en Educación Básica"]],
+  ["Primaria", NOR, ["Normalista Superior"]],
+  ["Primaria", TEC, ["Tecnología en Educación","Tecnología en Educación Básica"]],
+  ["Directivo Docente", LIC, ["Licenciatura (cualquier área)","Licenciatura en Administración Educativa"]],
+  ["Directivo Docente", PRO, ["Profesional con posgrado en Educación","Profesional con especialización en Administración Educativa"]],
+  ["Docente Orientador", LIC, ["Licenciatura en Psicopedagogía","Licenciatura en Orientación Educativa","Licenciatura en Consejería"]],
+  ["Docente Orientador", PRO, ["Psicología","Psicopedagogía","Orientación y Consejería"]],
+];
+const REGISTROS_EXTRA = []; // { area, tipo, titulo }
+const DB = [...FUENTE.flatMap(([area, tipo, ts]) => ts.map(titulo => ({ area, tipo, titulo }))), ...REGISTROS_EXTRA];
+
+const AREAS_ORDEN = ["Directivo Docente","Docente Orientador","Preescolar","Primaria","Matemáticas","Ciencias Sociales","Humanidades","Ciencias Naturales","Química","Física","Tecnología e Informática","Inglés","Religión","Educación Artística","Educación Física","Ética y Valores","Ciencias Económicas y Políticas","Filosofía"];
+const FILTROS = ["Todos","Docente de Aula",...AREAS_ORDEN];
+const cargoDe = a => a === "Directivo Docente" || a === "Docente Orientador" ? a : "Docente de Aula";
+const OBS = {
+  [LIC]: "Título de licenciado afín al área. Cumple el requisito sin formación pedagógica adicional.",
+  [PRO]: "Profesional no licenciado: requiere acreditar formación pedagógica (posgrado en educación o programa de pedagogía) según la norma.",
+  [NOR]: "Aplica a niveles de preescolar y primaria; verifica el programa de formación complementaria.",
+  [TEC]: "Tecnólogo en educación: solo para niveles de preescolar y primaria."
+};
+const TIPO_COLOR = {
+  [LIC]: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+  [PRO]: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+  [NOR]: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
+  [TEC]: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+};
+const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const uniq = a => [...new Set(a)];
+
+/* ============ ICONOS ============ */
+const Ico = ({ d, c = "w-5 h-5" }) => (
+  <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
+);
+const Search = p => <Ico {...p} d={<><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></>} />;
+const Download = p => <Ico {...p} d={<><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></>} />;
+const Cap = p => <Ico {...p} d={<><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></>} />;
+const Help = p => <Ico {...p} d={<><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></>} />;
+const X = p => <Ico {...p} d={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>} />;
+const Check = p => <Ico {...p} d={<path d="m5 12 5 5L20 7"/>} />;
+
+/* ============ COMPONENTES ============ */
+const Stat = ({ n, label }) => (
+  <div className="rounded-xl bg-white/10 px-4 py-3 text-center backdrop-blur">
+    <div className="text-2xl font-bold tabular-nums">{n}</div>
+    <div className="text-xs text-blue-100">{label}</div>
+  </div>
+);
+const Badge = ({ tipo }) => <span className={"inline-block rounded-full px-2.5 py-0.5 text-xs font-medium " + TIPO_COLOR[tipo]}>{tipo}</span>;
+
+function Modal({ onClose }) {
+  const [t, setT] = useState("");
+  const todos = useMemo(() => uniq(DB.map(r => r.titulo)).sort((a, b) => a.localeCompare(b, "es")), []);
+  const exacto = todos.find(x => norm(x) === norm(t));
+  const res = exacto ? DB.filter(r => r.titulo === exacto) : [];
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4" onClick={onClose}>
+      <div className="pop w-full sm:max-w-xl max-h-[90vh] overflow-auto rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-200">¿A qué área puedo presentarme?</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Selecciona o escribe tu título profesional.</p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"><X /></button>
+        </div>
+        <input list="titulos" value={t} onChange={e => setT(e.target.value)} placeholder="Ej.: Ingeniería Civil"
+          className="mt-4 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600" />
+        <datalist id="titulos">{todos.map(x => <option key={x} value={x} />)}</datalist>
+        {exacto ? (
+          <div className="mt-4">
+            <p className="text-sm font-medium mb-2">{exacto} te habilita en {res.length} {res.length === 1 ? "área" : "áreas"}:</p>
+            <ul className="space-y-2">
+              {res.map((r, i) => (
+                <li key={i} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-medium"><Check c="w-4 h-4 text-emerald-600" />{r.area}</span>
+                    <Badge tipo={r.tipo} />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{cargoDe(r.area)} · {OBS[r.tipo]}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : t && <p className="mt-4 text-sm text-slate-500">No encontramos coincidencias. Verifica el nombre de la carrera o área.</p>}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [q, setQ] = useState("");
+  const [filtro, setFiltro] = useState("Todos");
+  const [modal, setModal] = useState(false);
+  const nq = norm(q);
+
+  const { rows, modo } = useMemo(() => {
+    let base = DB.filter(r => filtro === "Todos" ? true : filtro === "Docente de Aula" ? cargoDe(r.area) === filtro : r.area === filtro);
+    if (!nq) return { rows: base, modo: "carrera" };
+    const areaHit = uniq(base.map(r => r.area)).some(a => norm(a).includes(nq));
+    if (areaHit) return { rows: base.filter(r => norm(r.area).includes(nq)), modo: "area" };
+    return { rows: base.filter(r => norm(r.titulo).includes(nq) || norm(r.tipo).includes(nq)), modo: "carrera" };
+  }, [nq, filtro]);
+
+  const grupos = useMemo(() => {
+    const key = modo === "area" ? "area" : "titulo";
+    const m = new Map();
+    rows.forEach(r => { if (!m.has(r[key])) m.set(r[key], []); m.get(r[key]).push(r); });
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "es"));
+  }, [rows, modo]);
+
+  const stats = {
+    areas: uniq(rows.map(r => r.area)).length,
+    titulos: uniq(rows.map(r => r.titulo)).length,
+    lic: uniq(rows.filter(r => r.tipo === LIC).map(r => r.titulo)).length,
+    pro: uniq(rows.filter(r => r.tipo === PRO).map(r => r.titulo)).length,
+  };
+
+  const exportar = () => {
+    const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+    const filas = [["Área docente","Cargo","Tipo de título","Título","Observaciones"], ...rows.map(r => [r.area, cargoDe(r.area), r.tipo, r.titulo, OBS[r.tipo]])];
+    const csv = "\uFEFF" + filas.map(f => f.map(esc).join(";")).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "resultados-concurso-docente.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-gradient-to-br from-[#0a2a6b] via-[#12408f] to-[#1d56b8] text-white">
+        <div className="mx-auto max-w-5xl px-4 pt-10 pb-24 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><Cap c="w-7 h-7" /></div>
+          <h1 className="text-2xl sm:text-4xl font-bold leading-tight">Buscador de Títulos Habilitantes para el Concurso Docente</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-blue-100">Consulta las áreas del concurso docente a las que puedes presentarte según la Resolución 3842 de 2022.</p>
+          <div className="mx-auto mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat n={stats.areas} label="Áreas docentes" />
+            <Stat n={stats.titulos} label="Títulos habilitados" />
+            <Stat n={stats.lic} label="Licenciaturas" />
+            <Stat n={stats.pro} label="Profesiones no licenciadas" />
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto -mt-14 max-w-5xl px-4 pb-16">
+        <div className="rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-blue-700 dark:text-blue-300"><Search /></span>
+            <input value={q} onChange={e => setQ(e.target.value)} aria-label="Buscar"
+              placeholder="Escribe una carrera, licenciatura, normalista o área docente…"
+              className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent py-3.5 pl-12 pr-10 text-base outline-none transition focus:ring-2 focus:ring-blue-600" />
+            {q && <button onClick={() => setQ("")} aria-label="Limpiar" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"><X c="w-4 h-4" /></button>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <button onClick={() => setModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#12408f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0a2a6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+              <Help c="w-4 h-4" />¿A qué área puedo presentarme?
+            </button>
+            <button onClick={exportar} disabled={!rows.length} className="inline-flex items-center gap-2 rounded-xl border border-[#12408f] px-4 py-2 text-sm font-medium text-[#12408f] dark:text-blue-200 dark:border-blue-300 transition hover:bg-blue-50 dark:hover:bg-slate-800 disabled:opacity-40">
+              <Download c="w-4 h-4" />Exportar resultados
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-1.5" role="group" aria-label="Filtros">
+            {FILTROS.map(f => (
+              <button key={f} onClick={() => setFiltro(f)} aria-pressed={filtro === f}
+                className={"rounded-full px-3 py-1 text-xs font-medium transition " + (filtro === f ? "bg-[#12408f] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700")}>{f}</button>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-6 mb-3 text-sm text-slate-500 dark:text-slate-400" aria-live="polite">
+          {rows.length ? (modo === "area" ? `Títulos habilitados por área (${grupos.length} ${grupos.length === 1 ? "área" : "áreas"})` : `${grupos.length} ${grupos.length === 1 ? "título" : "títulos"} con ${rows.length} habilitaciones`) : ""}
+        </p>
+
+        {!rows.length ? (
+          <div className="pop rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center text-slate-600 dark:text-slate-300">
+            No encontramos coincidencias. Verifica el nombre de la carrera o área.
+          </div>
+        ) : modo === "area" ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {grupos.map(([area, rs]) => (
+              <article key={area} className="pop rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200">Docente de {area}</h3>
+                  <span className="shrink-0 rounded-md bg-blue-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-blue-800 dark:text-blue-200">{cargoDe(area)}</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{rs.length} títulos habilitados</p>
+                {uniq(rs.map(r => r.tipo)).map(t => (
+                  <div key={t} className="mt-3">
+                    <Badge tipo={t} />
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                      {rs.filter(r => r.tipo === t).map((r, i) => <li key={i} className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-sm">{r.titulo}</li>)}
+                    </ul>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{OBS[t]}</p>
+                  </div>
+                ))}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {grupos.map(([titulo, rs]) => (
+              <article key={titulo} className="pop rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200">{titulo}</h3>
+                  <span className="shrink-0 text-xs text-slate-500">{rs.length} {rs.length === 1 ? "área" : "áreas"}</span>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {rs.map((r, i) => (
+                    <li key={i} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 font-medium"><Check c="w-4 h-4 text-emerald-600" />Docente de {r.area}</span>
+                        <Badge tipo={r.tipo} />
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cargo: {cargoDe(r.area)} · Área de conocimiento: {r.area}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{OBS[r.tipo]}</p>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        )}
+        <p className="mt-10 text-center text-xs text-slate-500 dark:text-slate-400">Herramienta informativa con datos de ejemplo. Confirma siempre los requisitos en el texto oficial de la Resolución 3842 de 2022 y en la convocatoria vigente.</p>
+      </main>
+      {modal && <Modal onClose={() => setModal(false)} />}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
